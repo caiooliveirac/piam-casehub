@@ -122,7 +122,9 @@ jobs:
             docker compose exec -T web alembic upgrade head
 
             echo "=== garantir usuário admin (idempotente) ==="
-            docker compose exec -T web python scripts/create_admin.py || true
+            # Not fatal to the deploy, but must be visible if it fails.
+            docker compose exec -T web python scripts/create_admin.py \
+              || echo "WARN: create_admin falhou — verifique ADMIN_PASSWORD e logs"
 
             echo "=== reiniciar web/bot ==="
             docker compose restart web bot

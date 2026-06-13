@@ -10,14 +10,19 @@ used. Run inside the app container after migrations:
 
 from __future__ import annotations
 
+import os
 import sys
 
-from sqlalchemy import select
+# Ensure the project root is importable when run as a plain script (the cwd
+# inside the container is /app, but sys.path[0] would be /app/scripts).
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from app.config import settings
-from app.db import SessionLocal
-from app.models.user import AdminUser
-from app.web.auth import hash_password
+from sqlalchemy import select  # noqa: E402
+
+from app.config import settings  # noqa: E402
+from app.db import SessionLocal  # noqa: E402
+from app.models.user import AdminUser  # noqa: E402
+from app.web.auth import hash_password  # noqa: E402
 
 
 def main() -> None:
