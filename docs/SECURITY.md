@@ -18,8 +18,14 @@ lista ameaças e mitigação inicial.
 - Login admin com senha; armazenada como **hash PBKDF2-HMAC-SHA256** (200k
   iterações, salt aleatório) — ver `app/web/auth.py`.
 - Fallback de primeiro acesso via `ADMIN_USERNAME`/`ADMIN_PASSWORD` do `.env`,
-  comparado em tempo constante. Rode `scripts/create_admin.py` para criar o
-  usuário no banco e **troque a senha padrão**.
+  comparado em tempo constante. **O fallback é bloqueado** se a senha for vazia
+  ou um placeholder (`change-me`/`change-me-now`), evitando login aberto por
+  configuração incompleta. Rode `scripts/create_admin.py` para criar o usuário
+  no banco e **troque a senha padrão**.
+- Se o banco estiver indisponível na hora do login, o fallback do `.env` ainda
+  funciona (sem derrubar a página) — registrado em log, sem segredo.
+- A documentação interativa da API (`/docs`, `/redoc`, `/openapi.json`) é
+  **desabilitada em produção** (`APP_ENV=production`) para não expor rotas.
 - Sessão por cookie assinado (Starlette `SessionMiddleware`), `SameSite=Lax`.
   Em produção (`APP_ENV=production`) o cookie é `https_only`.
 
@@ -28,6 +34,10 @@ lista ameaças e mitigação inicial.
 - O bot **só processa mensagens do grupo** `TELEGRAM_GROUP_ID`.
 - Comandos privados **só do** `TELEGRAM_ADMIN_ID`; qualquer outro chat privado é
   ignorado.
+- Mensagens de **outros bots são ignoradas** (`is_bot`) — evita loops e casos
+  espúrios criados por integrações.
+- `/fechar <public_id>` (ação mutável) é **restrito ao `TELEGRAM_ADMIN_ID`**,
+  mesmo dentro do grupo.
 - Mantenha o **privacy mode** do bot desligado apenas o necessário para receber
   as mensagens do grupo.
 - O token concede controle total do bot — trate como segredo crítico. Se vazar,

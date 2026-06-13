@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 
+from sqlalchemy import select
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -38,6 +39,10 @@ def _is_authorized(update: Update) -> bool:
     user = update.effective_user
     if chat is None:
         return False
+    # Never react to other bots — avoids loops and spurious cases from
+    # integrations posting in the group.
+    if user is not None and getattr(user, "is_bot", False):
+        return False
     group_id = settings.resolved_group_id
     admin_id = settings.resolved_admin_id
     if chat.type in ("group", "supergroup"):
@@ -45,6 +50,13 @@ def _is_authorized(update: Update) -> bool:
     if chat.type == "private":
         return admin_id != "" and user is not None and str(user.id) == str(admin_id)
     return False
+
+
+def _is_admin(update: Update) -> bool:
+    """True only for the configured TELEGRAM_ADMIN_ID (mutating commands)."""
+    admin_id = settings.resolved_admin_id
+    user = update.effective_user
+    return admin_id != "" and user is not None and str(user.id) == str(admin_id)
 
 
 def _preview(text: str) -> str:
@@ -95,8 +107,6 @@ async def cmd_novo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def cmd_casos(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _is_authorized(update):
         return
-    from sqlalchemy import select
-
     with SessionLocal() as session:
         rows = session.execute(
             select(Case).order_by(Case.created_at.desc()).limit(10)
@@ -113,12 +123,17 @@ async def cmd_casos(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def cmd_fechar(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _is_authorized(update):
         return
+    # Closing a case is a mutating action — restrict it to the admin.
+    if not _is_admin(update):
+        await update.effective_message.reply_text(
+            "Apenas o administrador pode encerrar casos."
+        )
+        return
     args = context.args or []
     if not args:
         await update.effective_message.reply_text("Uso: /fechar <public_id>")
         return
     public_id = args[0].strip()
-    from sqlalchemy import select
 
     with SessionLocal() as session:
         case = session.execute(
@@ -148,8 +163,6 @@ async def cmd_resumo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await update.effective_message.reply_text("Uso: /resumo <public_id>")
         return
     public_id = args[0].strip()
-    from sqlalchemy import select
-
     with SessionLocal() as session:
         case = session.execute(
             select(Case).where(Case.public_id == public_id)

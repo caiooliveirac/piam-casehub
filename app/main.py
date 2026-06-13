@@ -15,7 +15,14 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import settings
 from app.web.routes import router
 
-app = FastAPI(title=settings.app_name)
+# Hide the interactive API docs in production — this is an internal admin tool
+# and the OpenAPI schema would otherwise disclose every route without auth.
+_docs_kwargs = (
+    {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    if settings.is_production
+    else {}
+)
+app = FastAPI(title=settings.app_name, **_docs_kwargs)
 
 app.add_middleware(
     SessionMiddleware,

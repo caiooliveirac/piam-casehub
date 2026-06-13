@@ -86,12 +86,29 @@ docs/                  # esta pasta
 6. **Webhook do Telegram** (em vez de long polling) quando houver HTTPS estável.
 7. **Testes de integração** do bot (hoje cobrimos parser/formatter/health/criação).
 
+## Revisão / hardening aplicados (histórico)
+
+- **Bug crítico do parser corrigido**: o rótulo `MP` em alternação no topo do
+  regex casava a substring "mp" (ex.: "tempo") e estourava `AttributeError`,
+  quebrando a criação de caso. Hoje `_search` é None-safe e `_labelled` agrupa a
+  alternação; `MP` usa `\bMP\b`. Há teste de regressão.
+- Flags clínicas (`alergias`, `contraindicação à trombólise`, `COVID`) agora
+  reconhecem as formas reais do PIAM ("Nega alergias", "...trombólise? X").
+- `/fechar` restrito ao admin; bot ignora mensagens de outros bots.
+- Fallback de login do `.env` bloqueado para senha placeholder; `/docs`
+  desabilitado em produção.
+
 ## Bugs conhecidos / limitações
 
-- Parser é heurístico: texto fora do padrão extrai poucos campos.
+- Parser é heurístico: texto fora do padrão extrai poucos campos (degrada para
+  vazio/`Não informado`, nunca inventa).
 - Datas/horas são strings; medianas ignoram valores não-parseáveis.
 - Sem paginação na lista de casos (limite de 200).
 - Filtro "com ECG" é aplicado em Python após a query (ok no volume atual).
+- Follow-up curto no Telegram é só registrado como mensagem (não re-parseia o
+  caso); o `raw_input` original é preservado para re-parse futuro.
+- Chamadas de banco são síncronas dentro de handlers async do bot — ok no
+  volume atual; migrar para fila/worker se crescer.
 - Auth é de sessão única por senha; sem 2FA/rotação.
 - Anexos são baixados pelo bot; se o download falhar, o `Attachment` é criado
   sem `storage_path` (metadados preservados, arquivo ausente) — ver logs.

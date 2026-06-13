@@ -9,6 +9,8 @@ Never invents clinical information.
 
 from __future__ import annotations
 
+import re
+
 from app.models.case import Case
 from app.schemas.case import ParsedCase
 
@@ -180,7 +182,5 @@ def _extract_vital(blob: str | None, key: str) -> str | None:
     """Pull a 'KEY: value;' fragment out of a stored vitals blob, if present."""
     if not blob:
         return None
-    import re
-
-    m = re.search(rf"{key}\s*:\s*([^;\n]+)", blob, re.IGNORECASE)
+    m = re.search(rf"\b{key}\s*:\s*([^;\n]+)", blob, re.IGNORECASE)
     return m.group(1).strip() if m else None

@@ -21,13 +21,22 @@ def _search(pattern: str, text: str, group: int = 1) -> str | None:
     m = re.search(pattern, text, re.IGNORECASE)
     if not m:
         return None
-    value = m.group(group).strip()
+    value = m.group(group)
+    # The capture group may not participate (e.g. an alternation matched the
+    # other branch). Treat that as "not found" instead of crashing.
+    if value is None:
+        return None
+    value = value.strip()
     return value or None
 
 
 def _labelled(label: str, text: str) -> str | None:
-    """Extract the value after a 'Label:' up to end of line."""
-    pattern = rf"{label}\s*:\s*(.+)"
+    """Extract the value after a 'Label:' up to end of line.
+
+    `label` is wrapped in a non-capturing group so alternations (e.g.
+    "MP|médico plantonista") bind to the colon/value, not just the first branch.
+    """
+    pattern = rf"(?:{label})\s*:\s*(.+)"
     return _search(pattern, text)
 
 
@@ -128,6 +137,34 @@ def _weight(text: str) -> str | None:
     return f"{m.group(1)} kg" if m else None
 
 
+def _allergies(text: str) -> str | None:
+    """Recognise PIAM phrasings: 'Alergias: X', 'Nega alergias', 'Alérgico a X'."""
+    value = _labelled("alergias", text)
+    if value:
+        return value
+    m = re.search(r"(nega\s+alergias|al[ée]rgic[oa][^.\n]*)", text, re.IGNORECASE)
+    return m.group(1).strip() if m else None
+
+
+def _thrombolysis(text: str) -> str | None:
+    """'Contraindicação a trombólise? <valor>' or 'Contraindicação ...: <valor>'."""
+    m = re.search(
+        r"contraindica[çc][ãa]o\s*(?:a|à)?\s*tromb[óo]lise\s*[?:]?\s*([^\n.]+)",
+        text,
+        re.IGNORECASE,
+    )
+    if m:
+        v = m.group(1).strip()
+        return v or None
+    return None
+
+
+def _covid(text: str) -> str | None:
+    """'COVID: <valor>' or 'COVID <valor>' up to end of line."""
+    m = re.search(r"\bCOVID\b\s*:?\s*([^\n]+)", text, re.IGNORECASE)
+    return m.group(1).strip() if m and m.group(1).strip() else None
+
+
 # Headers that terminate a captured section even without a blank line between.
 _SECTION_STOP = (
     r"HMA",
@@ -169,7 +206,7 @@ def parse_case(text: str) -> ParsedCase:
         companion=_labelled("acompanhante", text),
         health_plan=_labelled(r"plano(?:\s+de\s+saúde)?", text),
         origin_unit=_labelled(r"unidade(?:\s+de\s+origem)?", text),
-        mp=_labelled(r"MP|m[ée]dico\s+plantonista", text),
+        mp=_labelled(r"\bMP\b|m[ée]dico\s+plantonista", text),
         admission_at=_datetime_after(r"admiss[ãa]o", text),
         ecg_at=_datetime_after(r"ECG", text),
         activation_at=_datetime_after(r"acionamento", text),
@@ -180,11 +217,9 @@ def parse_case(text: str) -> ParsedCase:
         killip=_killip(text),
         hgt=_hgt(text),
         pain_score=_pain_score(text),
-        allergies=_labelled("alergias", text),
-        covid=_labelled("covid", text),
-        thrombolysis_contraindication=_labelled(
-            r"contraindica[çc][ãa]o\s*(?:a|à)?\s*tromb[óo]lise", text
-        ),
+        allergies=_allergies(text),
+        covid=_covid(text),
+        thrombolysis_contraindication=_thrombolysis(text),
     )
 
     # HMA: prefer an explicit "HMA:" section, otherwise leave None.

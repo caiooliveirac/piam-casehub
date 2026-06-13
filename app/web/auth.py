@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import os
 from base64 import b64decode, b64encode
 
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
+from sqlalchemy.exc import SQLAlchemyError
 
 from app.config import settings
 from app.db import SessionLocal
@@ -21,6 +23,9 @@ from app.models.user import AdminUser
 
 _ITERATIONS = 200_000
 _ALGO = "pbkdf2_sha256"
+
+# Placeholder passwords that must never grant access via the .env fallback.
+_INSECURE_DEFAULTS = {"", "change-me", "change-me-now"}
 
 
 def hash_password(password: str) -> str:
@@ -49,13 +54,24 @@ def authenticate(username: str, password: str) -> bool:
     The .env fallback guarantees first-login access even before create_admin.py
     has been run. It is compared in constant time.
     """
-    with SessionLocal() as session:
-        user = session.execute(
-            select(AdminUser).where(AdminUser.username == username)
-        ).scalar_one_or_none()
+    try:
+        with SessionLocal() as session:
+            user = session.execute(
+                select(AdminUser).where(AdminUser.username == username)
+            ).scalar_one_or_none()
+    except SQLAlchemyError:
+        # DB unavailable or migrations not yet applied — fall through to the
+        # env-based admin so first-boot login still works. Logged, no secret.
+        logging.getLogger("piam.auth").warning(
+            "Falha ao consultar admin_users; usando fallback do .env."
+        )
+        user = None
     if user and verify_password(password, user.password_hash):
         return True
-    # Env fallback
+    # Env fallback — only when a real (non-placeholder) password is configured,
+    # so an unset/default ADMIN_PASSWORD can never become an open login.
+    if settings.admin_password in _INSECURE_DEFAULTS:
+        return False
     env_user_ok = hmac.compare_digest(username, settings.admin_username)
     env_pass_ok = hmac.compare_digest(password, settings.admin_password)
     return env_user_ok and env_pass_ok
