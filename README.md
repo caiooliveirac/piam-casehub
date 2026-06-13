@@ -39,8 +39,8 @@ docker compose exec web python scripts/create_admin.py
 
 Ou em um passo só: `./scripts/bootstrap.sh`.
 
-- **Web/Dashboard:** http://localhost:8000 → login em `/login`
-- **Health:** http://localhost:8000/health
+- **Web/Dashboard:** http://localhost:8060 → login em `/login`
+- **Health:** http://localhost:8060/health
 
 ## Rodar local (sem Docker, dev)
 
@@ -71,7 +71,7 @@ docker compose exec web alembic revision --autogenerate -m "mudança"
 docker compose config
 
 # Smoke test
-./scripts/smoke_test.sh http://localhost:8000
+./scripts/smoke_test.sh http://localhost:8060
 
 # Deploy
 ./scripts/deploy.sh
@@ -111,12 +111,16 @@ configurado; comandos privados só do `TELEGRAM_ADMIN_ID`. Veja
 
 ## Deploy
 
-Resumo (detalhes em [docs/DEPLOY.md](docs/DEPLOY.md)):
+**CI/CD via GitHub Actions** (recomendado) — push na `main` dispara
+`.github/workflows/deploy.yml`: testa, conecta por SSH na EC2, faz rsync, sobe
+com Docker Compose, migra, reinicia e roda smoke test em `/health`. Os *secrets*
+(EC2 + app) já estão configurados no repositório. Detalhes e tabela de secrets
+em [docs/DEPLOY.md](docs/DEPLOY.md).
 
-1. Configure `DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_PATH`, `DEPLOY_SSH_KEY` no `.env`.
-2. `./scripts/deploy.sh` — roda testes, dá push, atualiza o servidor por SSH,
-   aplica migrações e roda smoke test.
-3. Nginx + Certbot para `piam.mnrs.com.br`.
+Alternativa manual: `./scripts/deploy.sh` (usa `DEPLOY_*` do `.env`).
+
+Nginx + Certbot para `piam.mnrs.com.br`. A web é publicada em `127.0.0.1:8060`
+(porta livre na EC2 compartilhada).
 
 ---
 

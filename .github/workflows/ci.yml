@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: piam-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Ruff + Pytest (Python 3.12)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Tests run against in-memory SQLite; no Postgres needed in CI.
+      DATABASE_URL: "sqlite+pysqlite:///:memory:"
+      SECRET_KEY: ci-secret
+      APP_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - name: Install deps
+        run: pip install -e ".[dev]"
+
+      - name: Ruff
+        run: ruff check .
+
+      - name: Pytest
+        run: pytest -q
+
+  docker-build:
+    name: Docker build check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image (same Dockerfile that ships to the VM)
+        run: docker build -t piam-casehub:ci .

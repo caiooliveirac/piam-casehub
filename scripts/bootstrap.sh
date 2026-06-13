@@ -20,4 +20,4 @@ docker compose exec -T web alembic upgrade head
 echo "→ Criando usuário admin…"
 docker compose exec -T web python scripts/create_admin.py
 
-echo "✓ Pronto. Web em http://localhost:8000  (login em /login)"
+echo "✓ Pronto. Web em http://localhost:8060  (login em /login)"

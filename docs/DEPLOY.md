@@ -1,7 +1,44 @@
 # Deploy — PIAM CaseHub (AWS + Docker + Nginx + HTTPS)
 
 Passo a passo realista para subir em `piam.mnrs.com.br`. Não há credenciais
-versionadas — tudo vem do `.env` da instância.
+versionadas — tudo vem do `.env` da instância ou dos *secrets* do GitHub.
+
+A instância AWS é **compartilhada** com outros projetos (giro-de-leitos,
+checagemdebases, etc.). Por isso o PIAM publica a web em **`127.0.0.1:8060`**
+(as portas 8000/8001/8050/8080 já estão em uso). O Postgres do PIAM roda no
+**próprio container** (`db`), isolado na rede do compose — não conflita com
+outros bancos do host.
+
+## Deploy via GitHub Actions (recomendado)
+
+`.github/workflows/deploy.yml` (modelado nos projetos que já acessam a mesma
+EC2) roda a cada push na `main`: testa (ruff+pytest), conecta por SSH no EC2,
+faz rsync do código, renderiza o `.env` de produção a partir dos *secrets*,
+sobe com `docker compose up -d --build`, aplica migrações, reinicia `web`/`bot`,
+roda smoke test em `/health` e notifica no Telegram.
+
+`.github/workflows/ci.yml` roda em todo push/PR (ruff, pytest, docker build).
+
+**Secrets já configurados** no repo `caiooliveirac/piam-casehub`:
+
+| Secret | Função |
+|---|---|
+| `PROD_SSH_HOST` | host da EC2 (`samu` = `56.125.255.58`) |
+| `PROD_SSH_USER` | `ubuntu` |
+| `PROD_SSH_KEY` | chave privada de deploy (`~/.ssh/caio_ec2_2026`) |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_ADMIN_ID`, `TELEGRAM_GROUP_ID` | bot |
+| `POSTGRES_PASSWORD`, `SECRET_KEY`, `ADMIN_PASSWORD` | app |
+
+Deploy manual pelo UI: aba **Actions → Deploy → Run workflow** (workflow_dispatch).
+
+Diretório de deploy no servidor: `/home/ubuntu/piam-casehub`.
+
+> O script `scripts/deploy.sh` continua disponível como alternativa manual a
+> partir da sua máquina (usa `DEPLOY_HOST/USER/KEY/PATH` do `.env`).
+
+---
+
+## Setup inicial (uma vez, por baixo)
 
 ## 0. Pré-requisitos na instância AWS
 
@@ -38,7 +75,7 @@ cp .env.example .env        # preencha TODOS os segredos (token, senhas, SECRET_
 docker compose up -d --build
 docker compose exec web alembic upgrade head
 docker compose exec web python scripts/create_admin.py
-curl -f http://localhost:8000/health
+curl -f http://localhost:8060/health
 ```
 
 ## 3. Deploys seguintes (automatizado)
@@ -63,7 +100,7 @@ sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-O server block faz proxy para `127.0.0.1:8000` (porta publicada só no localhost
+O server block faz proxy para `127.0.0.1:8060` (porta publicada só no localhost
 pelo `docker-compose.yml`) e limita uploads a `25M`.
 
 ## 5. HTTPS (Certbot)

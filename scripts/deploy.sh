@@ -63,6 +63,6 @@ docker compose restart web bot
 EOF
 
 echo "==> 10. Smoke test remoto"
-ssh "${SSH_OPTS[@]}" "${REMOTE}" "curl -fsS http://localhost:8000/health" \
+ssh "${SSH_OPTS[@]}" "${REMOTE}" "curl -fsS http://localhost:8060/health" \
   && echo "✓ Deploy concluído" \
   || { echo "✗ Smoke test remoto falhou"; exit 1; }

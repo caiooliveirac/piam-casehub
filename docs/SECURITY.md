@@ -50,7 +50,7 @@ lista ameaças e mitigação inicial.
 
 ## Rede
 
-- A porta da app é publicada só em `127.0.0.1:8000`; o acesso externo passa pelo
+- A porta da app é publicada só em `127.0.0.1:8060`; o acesso externo passa pelo
   Nginx (80/443).
 - HTTPS via Certbot (ver [DEPLOY.md](DEPLOY.md)). Forçar HTTPS em produção.
 

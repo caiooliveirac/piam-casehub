@@ -1,0 +1,177 @@
+name: Deploy
+
+# Modelado nos projetos que já acessam a mesma EC2 (giro-de-leitos,
+# responderinterno): SSH cru + rsync, sem actions de terceiros.
+#
+# Secrets necessários no repositório (iguais aos outros projetos da EC2):
+#   PROD_SSH_HOST   - host/IP da instância AWS
+#   PROD_SSH_USER   - usuário SSH (ubuntu)
+#   PROD_SSH_KEY    - chave privada (conteúdo, ed25519)
+# Secrets da aplicação (renderizados no .env do servidor):
+#   TELEGRAM_BOT_TOKEN, TELEGRAM_ADMIN_ID, TELEGRAM_GROUP_ID
+#   POSTGRES_PASSWORD, SECRET_KEY, ADMIN_PASSWORD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: piam-casehub-deploy
+  cancel-in-progress: false   # nunca cancela um deploy em andamento
+
+env:
+  APP: piam-casehub
+  REMOTE: ${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }}
+  DEPLOY_DIR: /home/ubuntu/piam-casehub
+
+jobs:
+  test:
+    name: Ruff + Pytest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: "sqlite+pysqlite:///:memory:"
+      SECRET_KEY: ci-secret
+      APP_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: pip install -e ".[dev]"
+      - run: ruff check .
+      - run: pytest -q
+
+  deploy:
+    name: Deploy to EC2 (Docker Compose)
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.PROD_SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Ensure deploy dir exists
+        run: |
+          ssh -i ~/.ssh/id_ed25519 ${{ env.REMOTE }} \
+            "mkdir -p '${{ env.DEPLOY_DIR }}'"
+
+      - name: Rsync source to server
+        run: |
+          rsync -az --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude '.venv' \
+            --exclude '__pycache__' \
+            --exclude '*.pyc' \
+            --exclude '.pytest_cache' \
+            --exclude '.ruff_cache' \
+            --exclude '.env' \
+            --exclude '.env.*' \
+            --exclude 'data' \
+            -e "ssh -o StrictHostKeyChecking=accept-new -i ~/.ssh/id_ed25519" \
+            ./ ${{ env.REMOTE }}:${{ env.DEPLOY_DIR }}/
+
+      - name: Render production .env (chmod 600)
+        run: |
+          printf '%s\n' \
+            "APP_ENV=production" \
+            "APP_NAME=PIAM CaseHub" \
+            "BASE_URL=https://piam.mnrs.com.br" \
+            "POSTGRES_DB=piam" \
+            "POSTGRES_USER=piam" \
+            "POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}" \
+            "DATABASE_URL=postgresql+psycopg://piam:${{ secrets.POSTGRES_PASSWORD }}@db:5432/piam" \
+            "TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }}" \
+            "TELEGRAM_ADMIN_ID=${{ secrets.TELEGRAM_ADMIN_ID }}" \
+            "TELEGRAM_GROUP_ID=${{ secrets.TELEGRAM_GROUP_ID }}" \
+            "ADMIN_USERNAME=admin" \
+            "ADMIN_PASSWORD=${{ secrets.ADMIN_PASSWORD }}" \
+            "SECRET_KEY=${{ secrets.SECRET_KEY }}" \
+            "UPLOAD_DIR=/data/uploads" \
+            "MAX_UPLOAD_MB=25" \
+            "TZ=America/Bahia" \
+          | ssh -i ~/.ssh/id_ed25519 ${{ env.REMOTE }} \
+              "cat > '${{ env.DEPLOY_DIR }}/.env' && chmod 600 '${{ env.DEPLOY_DIR }}/.env'"
+
+      - name: Build, migrate, restart, smoke test
+        run: |
+          ssh -o ServerAliveInterval=20 -o ServerAliveCountMax=120 \
+              -i ~/.ssh/id_ed25519 ${{ env.REMOTE }} bash -s << 'REMOTE_SCRIPT'
+            set -euo pipefail
+            cd /home/ubuntu/piam-casehub
+
+            echo "=== docker compose up -d --build ==="
+            docker compose up -d --build
+
+            echo "=== aguardando db ficar saudável ==="
+            for i in $(seq 1 30); do
+              if docker compose ps db | grep -q healthy; then echo "db OK em ${i}s"; break; fi
+              sleep 2
+            done
+
+            echo "=== alembic upgrade head ==="
+            docker compose exec -T web alembic upgrade head
+
+            echo "=== garantir usuário admin (idempotente) ==="
+            docker compose exec -T web python scripts/create_admin.py || true
+
+            echo "=== reiniciar web/bot ==="
+            docker compose restart web bot
+
+            echo "=== smoke test /health ==="
+            ok=0
+            for i in $(seq 1 30); do
+              if curl -fsS http://127.0.0.1:8060/health | grep -q '"status":"ok"'; then
+                ok=1; echo "health OK em ${i}s"; break
+              fi
+              sleep 2
+            done
+            if [ "$ok" -eq 0 ]; then
+              echo "ERRO: /health não respondeu ok"
+              docker compose logs --tail 80 web || true
+              exit 1
+            fi
+            echo "=== deploy OK ==="
+          REMOTE_SCRIPT
+
+      - name: Cleanup SSH key
+        if: always()
+        run: rm -f ~/.ssh/id_ed25519
+
+      - name: Notify Telegram (success)
+        if: success()
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TELEGRAM_ADMIN_ID }}
+          GIT_SHA: ${{ github.sha }}
+        run: |
+          if [ -z "${TG_TOKEN:-}" ] || [ -z "${TG_CHAT:-}" ]; then
+            echo "telegram secrets ausentes, pulando"; exit 0
+          fi
+          curl -sS -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TG_CHAT}" \
+            --data-urlencode "text=PIAM CaseHub deploy OK — ${GIT_SHA}" || true
+
+      - name: Notify Telegram (failure)
+        if: failure()
+        env:
+          TG_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TG_CHAT: ${{ secrets.TELEGRAM_ADMIN_ID }}
+          GIT_SHA: ${{ github.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "${TG_TOKEN:-}" ] || [ -z "${TG_CHAT:-}" ]; then
+            echo "telegram secrets ausentes, pulando"; exit 0
+          fi
+          curl -sS -X POST "https://api.telegram.org/bot${TG_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TG_CHAT}" \
+            --data-urlencode "text=PIAM CaseHub deploy FALHOU — ${GIT_SHA} — ${RUN_URL}" || true

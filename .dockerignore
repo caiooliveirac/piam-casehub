@@ -1,0 +1,24 @@
+# Never copy secrets or local cruft into the image build context.
+.env
+.env.*
+!.env.example
+
+.git
+.github
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.ruff_cache
+.mypy_cache
+
+# Local data / uploads must never enter the image.
+data
+uploads
+*.sqlite3
+*.db
+
+.DS_Store
+.idea
+.vscode
