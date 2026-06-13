@@ -1,0 +1,4 @@
+/* Minimal supplemental styles. Tailwind (CDN) does the heavy lifting. */
+pre {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}

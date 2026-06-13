@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}{{ app_name }}{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <link rel="stylesheet" href="/static/app.css" />
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+  <nav class="bg-slate-900 text-slate-100">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <a href="/dashboard" class="font-semibold tracking-tight">🫀 {{ app_name }}</a>
+      {% if user %}
+      <div class="flex items-center gap-4 text-sm">
+        <a href="/dashboard" class="hover:underline">Dashboard</a>
+        <a href="/cases" class="hover:underline">Casos</a>
+        <a href="/metrics" class="hover:underline">Métricas</a>
+        <span class="text-slate-400">{{ user }}</span>
+        <a href="/logout" class="text-rose-300 hover:underline">Sair</a>
+      </div>
+      {% endif %}
+    </div>
+  </nav>
+  <main class="max-w-6xl mx-auto px-4 py-6">
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="max-w-6xl mx-auto px-4 py-6 text-xs text-slate-400">
+    PIAM CaseHub — ferramenta de organização e padronização de casos. Não substitui avaliação médica.
+  </footer>
+</body>
+</html>

@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}{{ case.public_id }} — {{ app_name }}{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-4">
+  <h1 class="text-xl font-semibold">{{ case.public_id }}</h1>
+  <span class="px-3 py-1 rounded-full bg-slate-200 text-sm capitalize">{{ case.status.replace("_", " ") }}</span>
+</div>
+
+<div class="grid md:grid-cols-2 gap-4">
+  <!-- Structured data -->
+  <div class="bg-white rounded-xl shadow p-4">
+    <h2 class="font-semibold mb-3">Dados estruturados</h2>
+    <dl class="text-sm grid grid-cols-2 gap-y-1">
+      <dt class="text-slate-400">Paciente</dt><dd>{{ case.patient_name or "—" }}</dd>
+      <dt class="text-slate-400">Idade</dt><dd>{{ case.patient_age or "—" }}</dd>
+      <dt class="text-slate-400">Peso</dt><dd>{{ case.patient_weight or "—" }}</dd>
+      <dt class="text-slate-400">Nascimento</dt><dd>{{ case.patient_birth_date or "—" }}</dd>
+      <dt class="text-slate-400">Unidade</dt><dd>{{ case.origin_unit or "—" }}</dd>
+      <dt class="text-slate-400">MP</dt><dd>{{ case.mp or "—" }}</dd>
+      <dt class="text-slate-400">Admissão</dt><dd>{{ case.admission_at or "—" }}</dd>
+      <dt class="text-slate-400">ECG</dt><dd>{{ case.ecg_at or "—" }}</dd>
+      <dt class="text-slate-400">Acionamento</dt><dd>{{ case.activation_at or "—" }}</dd>
+      <dt class="text-slate-400">Killip</dt><dd>{{ case.killip or "—" }}</dd>
+      <dt class="text-slate-400">HGT</dt><dd>{{ case.hgt or "—" }}</dd>
+    </dl>
+  </div>
+
+  <!-- PIAM text -->
+  <div class="bg-white rounded-xl shadow p-4">
+    <h2 class="font-semibold mb-3">Texto PIAM</h2>
+    <pre class="text-xs bg-slate-50 border border-slate-200 rounded p-3 whitespace-pre-wrap overflow-auto max-h-96">{{ piam_text }}</pre>
+  </div>
+</div>
+
+<!-- Edit form -->
+<div class="bg-white rounded-xl shadow p-4 mt-4">
+  <h2 class="font-semibold mb-3">Editar caso</h2>
+  <form method="post" action="/cases/{{ case.public_id }}" class="space-y-3 text-sm">
+    <div class="grid md:grid-cols-3 gap-3">
+      <div>
+        <label class="block text-slate-500 mb-1">Status</label>
+        <select name="status" class="w-full border border-slate-300 rounded px-3 py-2">
+          {% for s in statuses %}
+          <option value="{{ s }}" {% if case.status == s %}selected{% endif %}>{{ s.replace("_", " ") }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-slate-500 mb-1">Destino</label>
+        <input name="destination" value="{{ case.destination or '' }}" class="w-full border border-slate-300 rounded px-3 py-2" />
+      </div>
+      <div>
+        <label class="block text-slate-500 mb-1">Desfecho</label>
+        <input name="outcome" value="{{ case.outcome or '' }}" class="w-full border border-slate-300 rounded px-3 py-2" />
+      </div>
+    </div>
+    <div>
+      <label class="block text-slate-500 mb-1">Notas de pesquisa</label>
+      <textarea name="research_notes" rows="2" class="w-full border border-slate-300 rounded px-3 py-2">{{ case.research_notes or '' }}</textarea>
+    </div>
+    <div>
+      <label class="block text-slate-500 mb-1">Texto PIAM final</label>
+      <textarea name="piam_formatted_text" rows="12" class="w-full border border-slate-300 rounded px-3 py-2 font-mono text-xs">{{ case.piam_formatted_text or piam_text }}</textarea>
+    </div>
+    <button class="bg-slate-900 text-white rounded px-4 py-2 hover:bg-slate-700">Salvar</button>
+  </form>
+</div>
+
+<div class="grid md:grid-cols-3 gap-4 mt-4">
+  <!-- Messages -->
+  <div class="bg-white rounded-xl shadow p-4">
+    <h2 class="font-semibold mb-3">Mensagens Telegram</h2>
+    <ul class="text-sm space-y-2 max-h-72 overflow-auto">
+      {% for msg in messages %}
+      <li class="border-b last:border-0 pb-1">
+        <div class="text-slate-400 text-xs">{{ msg.telegram_username or msg.telegram_user_id or "?" }} · {{ msg.created_at.strftime("%d/%m %H:%M") if msg.created_at else "" }}</div>
+        <div>{{ msg.text or "[sem texto]" }}</div>
+      </li>
+      {% else %}
+      <li class="text-slate-400">Nenhuma mensagem.</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <!-- Attachments -->
+  <div class="bg-white rounded-xl shadow p-4">
+    <h2 class="font-semibold mb-3">Anexos</h2>
+    <ul class="text-sm space-y-2 max-h-72 overflow-auto">
+      {% for a in attachments %}
+      <li class="border-b last:border-0 pb-1">
+        <div>{{ a.file_name or "arquivo" }}</div>
+        <div class="text-slate-400 text-xs">{{ a.attachment_type }} · {{ a.mime_type or "?" }}</div>
+      </li>
+      {% else %}
+      <li class="text-slate-400">Nenhum anexo.</li>
+      {% endfor %}
+    </ul>
+  </div>
+
+  <!-- Audit timeline -->
+  <div class="bg-white rounded-xl shadow p-4">
+    <h2 class="font-semibold mb-3">Trilha de auditoria</h2>
+    <ul class="text-sm space-y-2 max-h-72 overflow-auto">
+      {% for log in logs %}
+      <li class="border-b last:border-0 pb-1">
+        <div class="font-medium">{{ log.action }}</div>
+        <div class="text-slate-400 text-xs">{{ log.actor_type }}{% if log.actor_id %}:{{ log.actor_id }}{% endif %} · {{ log.created_at.strftime("%d/%m %H:%M") if log.created_at else "" }}</div>
+      </li>
+      {% else %}
+      <li class="text-slate-400">Sem eventos.</li>
+      {% endfor %}
+    </ul>
+  </div>
+</div>
+{% endblock %}

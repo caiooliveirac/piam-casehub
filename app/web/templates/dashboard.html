@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — {{ app_name }}{% endblock %}
+{% macro card(label, value, sub="") %}
+<div class="bg-white rounded-xl shadow p-4">
+  <div class="text-xs uppercase tracking-wide text-slate-400">{{ label }}</div>
+  <div class="text-2xl font-semibold mt-1">{{ value }}</div>
+  {% if sub %}<div class="text-xs text-slate-500 mt-1">{{ sub }}</div>{% endif %}
+</div>
+{% endmacro %}
+{% block content %}
+<h1 class="text-xl font-semibold mb-4">Dashboard</h1>
+
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+  {{ card("Casos hoje", m.today) }}
+  {{ card("Últimos 7 dias", m.last7) }}
+  {{ card("Sem desfecho", m.without_outcome) }}
+  {{ card("Com ECG anexado", m.with_ecg) }}
+  {{ card("Adm → ECG (mediana)", (m.median_admission_to_ecg ~ " min") if m.median_admission_to_ecg is not none else "—") }}
+  {{ card("ECG → Acionamento (mediana)", (m.median_ecg_to_activation ~ " min") if m.median_ecg_to_activation is not none else "—") }}
+  {{ card("Total de casos", m.total) }}
+</div>
+
+<div class="grid md:grid-cols-2 gap-4 mt-6">
+  <div class="bg-white rounded-xl shadow p-4">
+    <h2 class="font-semibold mb-3">Casos por status</h2>
+    <table class="w-full text-sm">
+      <tbody>
+        {% for status, count in m.by_status.items() %}
+        <tr class="border-b last:border-0">
+          <td class="py-1 capitalize">{{ status.replace("_", " ") }}</td>
+          <td class="py-1 text-right font-medium">{{ count }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="bg-white rounded-xl shadow p-4">
+    <h2 class="font-semibold mb-3">Casos recentes</h2>
+    <table class="w-full text-sm">
+      <tbody>
+        {% for c in recent %}
+        <tr class="border-b last:border-0">
+          <td class="py-1"><a class="text-blue-600 hover:underline" href="/cases/{{ c.public_id }}">{{ c.public_id }}</a></td>
+          <td class="py-1">{{ c.patient_name or "—" }}</td>
+          <td class="py-1 text-right text-slate-500 capitalize">{{ c.status.replace("_", " ") }}</td>
+        </tr>
+        {% else %}
+        <tr><td class="py-2 text-slate-400">Nenhum caso ainda.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}

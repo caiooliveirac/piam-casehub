@@ -1,0 +1,48 @@
+[project]
+name = "piam-casehub"
+version = "0.1.0"
+description = "PIAM CaseHub — ingestão, padronização e dashboard de casos clínicos (PIAM)."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.111",
+    "uvicorn[standard]>=0.30",
+    "jinja2>=3.1",
+    "python-multipart>=0.0.9",
+    "itsdangerous>=2.2",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "psycopg[binary]>=3.1",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+    "python-telegram-bot>=21.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "httpx>=0.27",
+    "ruff>=0.5",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+ignore = [
+    "B008",   # FastAPI uses callables in argument defaults (Form/Depends)
+    # Keep annotations evaluatable on Python 3.9+ as well as 3.12. SQLAlchemy
+    # Mapped[...] and FastAPI/Pydantic evaluate annotations at runtime, so we
+    # deliberately keep Optional[...] and timezone.utc instead of 3.10+ syntax.
+    "UP007",  # Optional[X] -> X | None
+    "UP045",  # Optional[X] -> X | None (annotations)
+    "UP017",  # timezone.utc -> datetime.UTC
+]
+
+[tool.ruff.lint.per-file-ignores]
+"app/migrations/*" = ["E501"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

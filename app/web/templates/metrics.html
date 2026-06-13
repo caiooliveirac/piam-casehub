@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Métricas — {{ app_name }}{% endblock %}
+{% macro table(title, data) %}
+<div class="bg-white rounded-xl shadow p-4">
+  <h2 class="font-semibold mb-3">{{ title }}</h2>
+  <table class="w-full text-sm">
+    <tbody>
+      {% for key, count in data.items() %}
+      <tr class="border-b last:border-0">
+        <td class="py-1">{{ key }}</td>
+        <td class="py-1 text-right font-medium">{{ count }}</td>
+      </tr>
+      {% else %}
+      <tr><td class="py-1 text-slate-400">Sem dados.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+{% block content %}
+<h1 class="text-xl font-semibold mb-4">Métricas para pesquisa</h1>
+
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+  <div class="bg-white rounded-xl shadow p-4">
+    <div class="text-xs uppercase text-slate-400">Total de casos</div>
+    <div class="text-2xl font-semibold">{{ m.total }}</div>
+  </div>
+  <div class="bg-white rounded-xl shadow p-4">
+    <div class="text-xs uppercase text-slate-400">% dados completos</div>
+    <div class="text-2xl font-semibold">{{ m.pct_complete }}%</div>
+  </div>
+  <div class="bg-white rounded-xl shadow p-4">
+    <div class="text-xs uppercase text-slate-400">Adm → ECG (mediana)</div>
+    <div class="text-2xl font-semibold">{{ (m.median_admission_to_ecg ~ " min") if m.median_admission_to_ecg is not none else "—" }}</div>
+  </div>
+  <div class="bg-white rounded-xl shadow p-4">
+    <div class="text-xs uppercase text-slate-400">ECG → Acionamento (mediana)</div>
+    <div class="text-2xl font-semibold">{{ (m.median_ecg_to_activation ~ " min") if m.median_ecg_to_activation is not none else "—" }}</div>
+  </div>
+</div>
+
+<div class="grid md:grid-cols-2 gap-4">
+  {{ table("Volume por dia", m.by_day) }}
+  {{ table("Volume por unidade", m.by_unit) }}
+  {{ table("Status final", m.by_status) }}
+  {{ table("Destino", m.by_destination) }}
+  {{ table("Desfecho", m.by_outcome) }}
+</div>
+
+<p class="text-xs text-slate-400 mt-4">
+  Tempo acionamento → orientação PIAM: requer carimbo de orientação (não disponível neste scaffold).
+</p>
+{% endblock %}

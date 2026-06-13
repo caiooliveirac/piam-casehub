@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Casos — {{ app_name }}{% endblock %}
+{% block content %}
+<h1 class="text-xl font-semibold mb-4">Casos</h1>
+
+<form method="get" action="/cases" class="bg-white rounded-xl shadow p-4 mb-4 grid md:grid-cols-4 gap-3 text-sm">
+  <input name="q" value="{{ filters.q }}" placeholder="Nome do paciente"
+         class="border border-slate-300 rounded px-3 py-2" />
+  <select name="status" class="border border-slate-300 rounded px-3 py-2">
+    <option value="">Todos os status</option>
+    {% for s in statuses %}
+    <option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s.replace("_", " ") }}</option>
+    {% endfor %}
+  </select>
+  <input name="unit" value="{{ filters.unit }}" placeholder="Unidade de origem"
+         class="border border-slate-300 rounded px-3 py-2" />
+  <div class="flex gap-2">
+    <input name="date_from" type="date" value="{{ filters.date_from }}"
+           class="border border-slate-300 rounded px-2 py-2 w-1/2" />
+    <input name="date_to" type="date" value="{{ filters.date_to }}"
+           class="border border-slate-300 rounded px-2 py-2 w-1/2" />
+  </div>
+  <label class="flex items-center gap-2">
+    <input type="checkbox" name="with_ecg" {% if filters.with_ecg == "on" %}checked{% endif %} /> Com ECG
+  </label>
+  <label class="flex items-center gap-2">
+    <input type="checkbox" name="no_outcome" {% if filters.no_outcome == "on" %}checked{% endif %} /> Sem desfecho
+  </label>
+  <button class="bg-slate-900 text-white rounded px-4 py-2 hover:bg-slate-700">Filtrar</button>
+  <a href="/cases" class="text-slate-500 underline self-center">Limpar</a>
+</form>
+
+<div class="bg-white rounded-xl shadow overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-100 text-slate-500 text-left">
+      <tr>
+        <th class="px-3 py-2">ID</th>
+        <th class="px-3 py-2">Paciente</th>
+        <th class="px-3 py-2">Unidade</th>
+        <th class="px-3 py-2">Status</th>
+        <th class="px-3 py-2">ECG</th>
+        <th class="px-3 py-2">Desfecho</th>
+        <th class="px-3 py-2">Criado</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in cases %}
+      <tr class="border-t hover:bg-slate-50">
+        <td class="px-3 py-2"><a class="text-blue-600 hover:underline" href="/cases/{{ c.public_id }}">{{ c.public_id }}</a></td>
+        <td class="px-3 py-2">{{ c.patient_name or "—" }}</td>
+        <td class="px-3 py-2">{{ c.origin_unit or "—" }}</td>
+        <td class="px-3 py-2 capitalize">{{ c.status.replace("_", " ") }}</td>
+        <td class="px-3 py-2">{{ "✓" if c.id in ecg_case_ids else "—" }}</td>
+        <td class="px-3 py-2">{{ c.outcome or "—" }}</td>
+        <td class="px-3 py-2 text-slate-400">{{ c.created_at.strftime("%d/%m %H:%M") if c.created_at else "" }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="7" class="px-3 py-4 text-slate-400">Nenhum caso encontrado.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
