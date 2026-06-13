@@ -58,7 +58,8 @@ def health() -> JSONResponse:
 def login_form(request: Request):
     if auth.current_user(request):
         return RedirectResponse(url="/dashboard", status_code=303)
-    return templates.TemplateResponse("login.html", _ctx(request, error=None))
+    return templates.TemplateResponse(
+        request, "login.html", _ctx(request, error=None))
 
 
 @router.post("/login", response_class=HTMLResponse)
@@ -67,7 +68,7 @@ def login_submit(request: Request, username: str = Form(...), password: str = Fo
         auth.login_session(request, username)
         return RedirectResponse(url="/dashboard", status_code=303)
     return templates.TemplateResponse(
-        "login.html", _ctx(request, error="Credenciais inválidas."), status_code=401
+        request, "login.html", _ctx(request, error="Credenciais inválidas."), status_code=401
     )
 
 
@@ -98,7 +99,7 @@ def dashboard(request: Request):
             select(Case).order_by(Case.created_at.desc()).limit(10)
         ).scalars().all()
     return templates.TemplateResponse(
-        "dashboard.html", _ctx(request, m=data, recent=recent)
+        request, "dashboard.html", _ctx(request, m=data, recent=recent)
     )
 
 
@@ -155,7 +156,7 @@ def cases_list(
             cases = [c for c in cases if c.id in ecg_case_ids]
 
     return templates.TemplateResponse(
-        "cases_list.html",
+        request, "cases_list.html",
         _ctx(
             request,
             cases=cases,
@@ -204,7 +205,7 @@ def case_detail(request: Request, public_id: str):
         ).scalars().all()
         piam_text = case.piam_formatted_text or format_from_case(case)
     return templates.TemplateResponse(
-        "case_detail.html",
+        request, "case_detail.html",
         _ctx(
             request,
             case=case,
@@ -273,7 +274,8 @@ def metrics_page(request: Request):
         return RedirectResponse(url="/login", status_code=303)
     with SessionLocal() as session:
         data = metrics.research_metrics(session)
-    return templates.TemplateResponse("metrics.html", _ctx(request, m=data))
+    return templates.TemplateResponse(
+        request, "metrics.html", _ctx(request, m=data))
 
 
 # ---------------------------------------------------------------------------
