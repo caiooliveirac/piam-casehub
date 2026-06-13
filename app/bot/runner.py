@@ -22,6 +22,9 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
+# httpx logs the full Telegram API URL (which embeds the bot token) at INFO.
+# Silence it to keep secrets out of logs (see docs/SECURITY.md).
+logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger("piam.bot")
 
 
